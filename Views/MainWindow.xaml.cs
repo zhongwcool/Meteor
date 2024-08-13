@@ -2,6 +2,7 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -11,20 +12,32 @@ using Meteor.Data;
 using Microsoft.Win32;
 using Application = System.Windows.Application;
 using Brushes = System.Windows.Media.Brushes;
+using Color = System.Windows.Media.Color;
 using MessageBox = System.Windows.MessageBox;
+using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+using Point = System.Windows.Point;
+using Rectangle = System.Windows.Shapes.Rectangle;
 
 namespace Meteor.Views;
 
 public partial class MainWindow : Window
 {
-    private readonly Random random = new();
-    private readonly DispatcherTimer _starTimer = new();
+    private readonly Random _random = new();
     private readonly DispatcherTimer _meteorTimer = new();
 
     public MainWindow()
     {
         InitializeComponent();
-        SourceInitialized += MainWindow_SourceInitialized;
+        Loaded += (_, _) =>
+        {
+            // 设置Timer来跟踪鼠标静止时间
+            _mouseStillTimer.Interval = TimeSpan.FromSeconds(30);
+            _mouseStillTimer.Tick += MouseStillTimer_Tick!; // 当计时器触发时再恢复背景
+            AddGradientBackground();
+            AddStars();
+        };
+        // 处理鼠标移动事件
+        MouseMove += MainWindow_MouseMove;
 
         // 设置窗口大小覆盖所有屏幕
         SetWindowToCoverAllScreens();
@@ -44,13 +57,12 @@ public partial class MainWindow : Window
             }
         };
 
-        _starTimer.Interval = TimeSpan.FromSeconds(0.5);
-        _starTimer.Tick += StarTimer_Tick!;
-        _starTimer.Start();
-
-        _meteorTimer.Interval = TimeSpan.FromSeconds(random.Next(5, 20));
+        _meteorTimer.Interval = TimeSpan.FromSeconds(_random.Next(5, 20));
         _meteorTimer.Tick += MeteorTimer_Tick!;
         _meteorTimer.Start();
+
+        // 初始化鼠标的最后位置
+        _lastMousePosition = Mouse.GetPosition(this);
     }
 
     private void SetWindowToCoverAllScreens()
@@ -61,49 +73,160 @@ public partial class MainWindow : Window
         Height = SystemParameters.VirtualScreenHeight;
     }
 
-    private void StarTimer_Tick(object sender, EventArgs e)
-    {
-        AddStars();
-    }
-
     private void MeteorTimer_Tick(object sender, EventArgs e)
     {
         AddMeteor();
-        _meteorTimer.Interval = TimeSpan.FromSeconds(random.Next(5, 20));
+        _meteorTimer.Interval = TimeSpan.FromSeconds(_random.Next(5, 20));
+    }
+
+    // 定义Timer和BackgroundRectangle用于之后引用
+    private readonly DispatcherTimer _mouseStillTimer = new();
+    private Rectangle? _starAreaBackground;
+    private const int Threshold = 200; // 鼠标移动的阈值，单位像素
+    private Point _lastMousePosition; // 用于存储上一次鼠标的位置
+
+    private void MainWindow_MouseMove(object sender, MouseEventArgs args)
+    {
+        var currentMousePosition = args.GetPosition(this);
+
+        // 计算鼠标移动的距离
+        if (!(Math.Sqrt(Math.Pow(currentMousePosition.X - _lastMousePosition.X, 2) +
+                        Math.Pow(currentMousePosition.Y - _lastMousePosition.Y, 2)) > Threshold)) return;
+
+        if (SkyCanvas.Children.Contains(_starAreaBackground))
+        {
+            // 移除背景
+            RemoveBackgroundWithAnimation();
+            //_starAreaBackground = null;
+            // 说明鼠标需要穿透
+            MakeMousePenetration();
+            _mouseStillTimer.Start();
+        }
+        else
+        {
+            _mouseStillTimer.Stop();
+            _mouseStillTimer.Start();
+        }
+
+        // 更新最后鼠标位置
+        _lastMousePosition = currentMousePosition;
+    }
+
+    private void RemoveBackgroundWithAnimation()
+    {
+        // 创建一个双精度动画，减少透明度至0，时长为2秒
+        DoubleAnimation fadeOutAnimation = new DoubleAnimation
+        {
+            From = 1.0, // 开始透明度
+            To = 0.0, // 结束透明度
+            Duration = new Duration(TimeSpan.FromSeconds(2)), // 动画时长
+            FillBehavior = FillBehavior.Stop // 动画完成后，设置行为为停止
+        };
+
+        // 动画完成后的事件
+        fadeOutAnimation.Completed += (s, e) =>
+        {
+            if (null == _starAreaBackground) return;
+            // 将透明度设置为0
+            _starAreaBackground.Opacity = 0.0;
+            // 从 SkyCanvas 中移除 starAreaBackground
+            SkyCanvas.Children.Remove(_starAreaBackground);
+        };
+
+        // 开始动画
+        _starAreaBackground?.BeginAnimation(UIElement.OpacityProperty, fadeOutAnimation);
+    }
+
+
+    private void MouseStillTimer_Tick(object sender, EventArgs e)
+    {
+        // 鼠标静止超过30秒，重新添加背景
+        AddGradientBackground();
+        // 停止计时器
+        _mouseStillTimer.Stop();
+        // 鼠标不动不穿透
+        CancelMousePenetration();
+    }
+
+    private void AddGradientBackground()
+    {
+        if (null == _starAreaBackground)
+        {
+            var canvasWidth = (int)SkyCanvas.ActualWidth; // 获取画布的实际宽度
+            var canvasHeight = (int)SkyCanvas.ActualHeight; // 获取画布的实际高度
+
+            // 创建渐变笔刷
+            var gradientBrush = new LinearGradientBrush
+            {
+                StartPoint = new Point(0.5, 0),
+                EndPoint = new Point(0.5, 1)
+            };
+
+            // 半透明黑色到透明的渐变
+            gradientBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0x80, 0, 0, 0), 0)); // 顶部为半透明黑色
+            gradientBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0, 0, 0, 0), 1)); // 底部为完全透明
+
+            // 创建表示背景的矩形并应用渐变笔刷
+            _starAreaBackground = new Rectangle
+            {
+                Width = canvasWidth,
+                Height = canvasHeight,
+                Fill = gradientBrush,
+                Opacity = 0.0
+            };
+        }
+
+        // 将背景矩形添加到Canvas的底层
+        SkyCanvas.Children.Insert(0, _starAreaBackground);
+
+        // 创建一个双精度动画，增加透明度至1，时长为2秒
+        var fadeInAnimation = new DoubleAnimation
+        {
+            From = 0.0, // 开始透明度
+            To = 1.0, // 结束透明度
+            Duration = new Duration(TimeSpan.FromSeconds(2)) // 动画时长
+        };
+
+        // 开始动画
+        _starAreaBackground.BeginAnimation(UIElement.OpacityProperty, fadeInAnimation);
     }
 
     #region 在此添加添加星星的方法 AddStar
 
     private void AddStars()
     {
-        var star = new Ellipse()
+        //执行2000次
+        for (var i = 0; i < 500; i++)
         {
-            Width = random.Next(2, 5),
-            Height = random.Next(2, 5),
-            Fill = Brushes.White
-        };
+            var star = new Ellipse
+            {
+                Width = _random.Next(2, 5),
+                Height = _random.Next(2, 5),
+                Fill = Brushes.White
+            };
 
-        // 使用一个概率密度函数来决定星星y的分布
-        var densityFactor = Math.Pow(random.NextDouble(), 2); // 平方使得高度分布向上集中
-        var y = densityFactor * 200;
+            // 使用一个概率密度函数来决定星星y的分布
+            var densityFactor = Math.Pow(_random.NextDouble(), 2); // 平方使得高度分布向上集中
+            var y = densityFactor * 200;
 
-        // 星星的位置
-        Canvas.SetLeft(star, random.Next(0, (int)SkyCanvas.ActualWidth));
-        Canvas.SetTop(star, y); // 星星仅出现在画布顶部
+            // 星星的位置
+            Canvas.SetLeft(star, _random.Next(0, (int)SkyCanvas.ActualWidth));
+            Canvas.SetTop(star, y); // 星星仅出现在画布顶部
 
-        // 闪烁动画
-        var blinkAnimation = new DoubleAnimation()
-        {
-            From = 0.2,
-            To = 1.0,
-            Duration = new Duration(TimeSpan.FromSeconds(random.Next(1, 4))),
-            AutoReverse = true,
-            RepeatBehavior = RepeatBehavior.Forever
-        };
+            // 闪烁动画
+            var blinkAnimation = new DoubleAnimation()
+            {
+                From = 0.2,
+                To = 1.0,
+                Duration = new Duration(TimeSpan.FromSeconds(_random.Next(1, 4))),
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever
+            };
 
-        star.BeginAnimation(OpacityProperty, blinkAnimation);
+            star.BeginAnimation(OpacityProperty, blinkAnimation);
 
-        SkyCanvas.Children.Add(star);
+            SkyCanvas.Children.Add(star);
+        }
     }
 
     #endregion
@@ -113,14 +236,14 @@ public partial class MainWindow : Window
     private void AddMeteor()
     {
         // 定义流星的起始位置为右上角的某个随机位置
-        double startX = random.Next(0, (int)SkyCanvas.ActualWidth);
-        double startY = random.Next(0, 100); // 起点的高度不变，仍然是原来的最大100像素
+        double startX = _random.Next(0, (int)SkyCanvas.ActualWidth);
+        double startY = _random.Next(0, 100); // 起点的高度不变，仍然是原来的最大100像素
 
         // 定义流星的结束位置
         // 这里减去Y轴的值，因为WPF的坐标系中，Y轴向下是增加，向上是减少
         // 修改X轴的值来改变流星划过的方向
         double endX = startX - 200;
-        double endY = random.Next(100, 200); // 终点的高度在100到200像素之间
+        double endY = _random.Next(100, 200); // 终点的高度在100到200像素之间
 
         var meteor = new Line
         {
@@ -170,12 +293,22 @@ public partial class MainWindow : Window
     private const int GWL_EXSTYLE = -20;
     private const int WS_EX_TRANSPARENT = 0x20;
 
-    private void MainWindow_SourceInitialized(object? sender, EventArgs e)
+    private void MakeMousePenetration()
     {
         // 获取当前窗口句柄
         var hwnd = new WindowInteropHelper(this).Handle;
         // 设置窗口样式为透明
         SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_TRANSPARENT);
+    }
+
+    private void CancelMousePenetration()
+    {
+        // 获取当前窗口句柄
+        var hwnd = new WindowInteropHelper(this).Handle;
+        // 获取当前窗口的扩展样式
+        int extendedStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
+        // 移除 WS_EX_TRANSPARENT 扩展样式用来关闭鼠标穿透
+        SetWindowLong(hwnd, GWL_EXSTYLE, extendedStyle & ~WS_EX_TRANSPARENT);
     }
 
     #endregion
@@ -223,7 +356,6 @@ public partial class MainWindow : Window
     private void InitializeTrayMenu()
     {
         // 创建托盘图标
-        _trayIcon = new NotifyIcon();
         var icon = Application.GetResourceStream(new Uri("pack://application:,,,/Resources/Dark/notify.ico"));
         _trayIcon.Icon = new Icon(icon?.Stream!);
         _trayIcon.Text = "银河与划过的流星";
@@ -251,7 +383,7 @@ public partial class MainWindow : Window
         window.ShowDialog();
     }
 
-    private NotifyIcon _trayIcon;
+    private readonly NotifyIcon _trayIcon = new();
 
     private void OnTrayIconExitClicked(object? sender, EventArgs e)
     {
