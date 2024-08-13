@@ -22,8 +22,14 @@ namespace Meteor.Views;
 
 public partial class MainWindow : Window
 {
-    private readonly Random _random = new();
+    private const int Threshold = 200; // 鼠标移动的阈值，单位像素
     private readonly DispatcherTimer _meteorTimer = new();
+
+    // 定义Timer和BackgroundRectangle用于之后引用
+    private readonly DispatcherTimer _mouseStillTimer = new();
+    private readonly Random _random = new();
+    private Point _lastMousePosition; // 用于存储上一次鼠标的位置
+    private Rectangle? _starAreaBackground;
 
     public MainWindow()
     {
@@ -79,12 +85,6 @@ public partial class MainWindow : Window
         _meteorTimer.Interval = TimeSpan.FromSeconds(_random.Next(5, 20));
     }
 
-    // 定义Timer和BackgroundRectangle用于之后引用
-    private readonly DispatcherTimer _mouseStillTimer = new();
-    private Rectangle? _starAreaBackground;
-    private const int Threshold = 200; // 鼠标移动的阈值，单位像素
-    private Point _lastMousePosition; // 用于存储上一次鼠标的位置
-
     private void MainWindow_MouseMove(object sender, MouseEventArgs args)
     {
         var currentMousePosition = args.GetPosition(this);
@@ -115,11 +115,11 @@ public partial class MainWindow : Window
     private void RemoveBackgroundWithAnimation()
     {
         // 创建一个双精度动画，减少透明度至0，时长为2秒
-        DoubleAnimation fadeOutAnimation = new DoubleAnimation
+        var fadeOutAnimation = new DoubleAnimation
         {
             From = 1.0, // 开始透明度
             To = 0.0, // 结束透明度
-            Duration = new Duration(TimeSpan.FromSeconds(2)), // 动画时长
+            Duration = new Duration(TimeSpan.FromSeconds(1)), // 动画时长
             FillBehavior = FillBehavior.Stop // 动画完成后，设置行为为停止
         };
 
@@ -134,7 +134,7 @@ public partial class MainWindow : Window
         };
 
         // 开始动画
-        _starAreaBackground?.BeginAnimation(UIElement.OpacityProperty, fadeOutAnimation);
+        _starAreaBackground?.BeginAnimation(OpacityProperty, fadeOutAnimation);
     }
 
 
@@ -184,30 +184,30 @@ public partial class MainWindow : Window
         {
             From = 0.0, // 开始透明度
             To = 1.0, // 结束透明度
-            Duration = new Duration(TimeSpan.FromSeconds(2)) // 动画时长
+            Duration = new Duration(TimeSpan.FromSeconds(1)) // 动画时长
         };
 
         // 开始动画
-        _starAreaBackground.BeginAnimation(UIElement.OpacityProperty, fadeInAnimation);
+        _starAreaBackground.BeginAnimation(OpacityProperty, fadeInAnimation);
     }
 
     #region 在此添加添加星星的方法 AddStar
 
     private void AddStars()
     {
-        //执行2000次
-        for (var i = 0; i < 500; i++)
+        for (var i = 0; i < 100; i++)
         {
+            var radius = _random.Next(2, 6);
             var star = new Ellipse
             {
-                Width = _random.Next(2, 5),
-                Height = _random.Next(2, 5),
+                Width = radius,
+                Height = radius,
                 Fill = Brushes.White
             };
 
             // 使用一个概率密度函数来决定星星y的分布
             var densityFactor = Math.Pow(_random.NextDouble(), 2); // 平方使得高度分布向上集中
-            var y = densityFactor * 200;
+            var y = densityFactor * 300;
 
             // 星星的位置
             Canvas.SetLeft(star, _random.Next(0, (int)SkyCanvas.ActualWidth));
@@ -218,7 +218,7 @@ public partial class MainWindow : Window
             {
                 From = 0.2,
                 To = 1.0,
-                Duration = new Duration(TimeSpan.FromSeconds(_random.Next(1, 4))),
+                Duration = new Duration(TimeSpan.FromSeconds(_random.Next(1, 5))),
                 AutoReverse = true,
                 RepeatBehavior = RepeatBehavior.Forever
             };
@@ -290,7 +290,10 @@ public partial class MainWindow : Window
     private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
 
     // 常量定义
+    // ReSharper disable once InconsistentNaming
     private const int GWL_EXSTYLE = -20;
+
+    // ReSharper disable once InconsistentNaming
     private const int WS_EX_TRANSPARENT = 0x20;
 
     private void MakeMousePenetration()
