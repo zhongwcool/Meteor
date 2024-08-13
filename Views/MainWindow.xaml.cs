@@ -1,6 +1,9 @@
 ﻿using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
@@ -14,13 +17,14 @@ namespace Meteor.Views;
 
 public partial class MainWindow : Window
 {
-    private readonly Random _random = new();
+    private readonly Random random = new();
     private readonly DispatcherTimer _starTimer = new();
     private readonly DispatcherTimer _meteorTimer = new();
 
     public MainWindow()
     {
         InitializeComponent();
+        SourceInitialized += MainWindow_SourceInitialized;
 
         // 设置窗口大小覆盖所有屏幕
         SetWindowToCoverAllScreens();
@@ -44,7 +48,7 @@ public partial class MainWindow : Window
         _starTimer.Tick += StarTimer_Tick!;
         _starTimer.Start();
 
-        _meteorTimer.Interval = TimeSpan.FromSeconds(_random.Next(5, 20));
+        _meteorTimer.Interval = TimeSpan.FromSeconds(random.Next(5, 20));
         _meteorTimer.Tick += MeteorTimer_Tick!;
         _meteorTimer.Start();
     }
@@ -59,35 +63,40 @@ public partial class MainWindow : Window
 
     private void StarTimer_Tick(object sender, EventArgs e)
     {
-        AddStar();
+        AddStars();
     }
 
     private void MeteorTimer_Tick(object sender, EventArgs e)
     {
         AddMeteor();
-        _meteorTimer.Interval = TimeSpan.FromSeconds(_random.Next(5, 20));
+        _meteorTimer.Interval = TimeSpan.FromSeconds(random.Next(5, 20));
     }
 
-    // 在此添加添加星星的方法 AddStar
-    private void AddStar()
+    #region 在此添加添加星星的方法 AddStar
+
+    private void AddStars()
     {
-        Ellipse star = new Ellipse()
+        var star = new Ellipse()
         {
-            Width = _random.Next(2, 5),
-            Height = _random.Next(2, 5),
+            Width = random.Next(2, 5),
+            Height = random.Next(2, 5),
             Fill = Brushes.White
         };
 
+        // 使用一个概率密度函数来决定星星y的分布
+        var densityFactor = Math.Pow(random.NextDouble(), 2); // 平方使得高度分布向上集中
+        var y = densityFactor * 200;
+
         // 星星的位置
-        Canvas.SetLeft(star, _random.Next(0, (int)SkyCanvas.ActualWidth));
-        Canvas.SetTop(star, _random.Next(0, 100)); // 星星仅出现在画布顶部
+        Canvas.SetLeft(star, random.Next(0, (int)SkyCanvas.ActualWidth));
+        Canvas.SetTop(star, y); // 星星仅出现在画布顶部
 
         // 闪烁动画
         var blinkAnimation = new DoubleAnimation()
         {
             From = 0.2,
             To = 1.0,
-            Duration = new Duration(TimeSpan.FromSeconds(_random.Next(1, 4))),
+            Duration = new Duration(TimeSpan.FromSeconds(random.Next(1, 4))),
             AutoReverse = true,
             RepeatBehavior = RepeatBehavior.Forever
         };
@@ -97,23 +106,34 @@ public partial class MainWindow : Window
         SkyCanvas.Children.Add(star);
     }
 
-    // 在此添加添加流星的方法 AddMeteor
+    #endregion
+
+    #region 在此添加添加流星的方法 AddMeteor
+
     private void AddMeteor()
     {
-        double startX = _random.Next(0, (int)SkyCanvas.ActualWidth - 100);
-        double startY = 0;
-        double endX = startX + 100; // 计算流星尾部位置
-        double endY = 100; // 流星的轨迹是斜线，因此它的Y值将比起点高100
+        // 定义流星的起始位置为右上角的某个随机位置
+        double startX = random.Next(0, (int)SkyCanvas.ActualWidth);
+        double startY = random.Next(0, 100); // 起点的高度不变，仍然是原来的最大100像素
 
-        Line meteor = new Line()
+        // 定义流星的结束位置
+        // 这里减去Y轴的值，因为WPF的坐标系中，Y轴向下是增加，向上是减少
+        // 修改X轴的值来改变流星划过的方向
+        double endX = startX - 200;
+        double endY = random.Next(100, 200); // 终点的高度在100到200像素之间
+
+        var meteor = new Line
         {
             Stroke = Brushes.White,
             X1 = startX,
             Y1 = startY,
             X2 = endX,
             Y2 = endY,
-            StrokeThickness = 2,
-            Opacity = 1
+            StrokeThickness = 1,
+            Opacity = 0.8,
+            // 渐变消失效果，使用StrokeStartLineCap 和 StrokeEndLineCap 来制作锐利的尾巴效果
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round
         };
 
         // 流星动画
@@ -128,10 +148,37 @@ public partial class MainWindow : Window
         // 动画完成后移除流星
         meteorAnimation.Completed += (s, e) => SkyCanvas.Children.Remove(meteor);
 
-        meteor.BeginAnimation(Line.OpacityProperty, meteorAnimation);
+        // 为流星添加动画
+        meteor.BeginAnimation(OpacityProperty, meteorAnimation);
 
+        // 向画布添加流星
         SkyCanvas.Children.Add(meteor);
     }
+
+    #endregion
+
+    #region 鼠标穿透
+
+    // 导入 Windows API
+    [DllImport("user32.dll")]
+    private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+    [DllImport("user32.dll")]
+    private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+    // 常量定义
+    private const int GWL_EXSTYLE = -20;
+    private const int WS_EX_TRANSPARENT = 0x20;
+
+    private void MainWindow_SourceInitialized(object? sender, EventArgs e)
+    {
+        // 获取当前窗口句柄
+        var hwnd = new WindowInteropHelper(this).Handle;
+        // 设置窗口样式为透明
+        SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_TRANSPARENT);
+    }
+
+    #endregion
 
     #region 托盘功能区
 
@@ -177,18 +224,15 @@ public partial class MainWindow : Window
     {
         // 创建托盘图标
         _trayIcon = new NotifyIcon();
-        var iconStream = Application.GetResourceStream(new Uri("pack://application:,,,/Resources/Dark/notify.ico"))
-            ?.Stream;
-        _trayIcon.Icon = new Icon(iconStream!);
+        var icon = Application.GetResourceStream(new Uri("pack://application:,,,/Resources/Dark/notify.ico"));
+        _trayIcon.Icon = new Icon(icon?.Stream!);
         _trayIcon.Text = "银河与划过的流星";
         _trayIcon.Visible = true;
 
         var trayMenu = new ContextMenuStrip();
-
         trayMenu.Items.Add("关于", null, OnTrayIconAboutClicked!);
         trayMenu.Items.Add("反馈", null, OnTrayIconTouchClicked);
         trayMenu.Items.Add("退出", null, OnTrayIconExitClicked);
-
         _trayIcon.ContextMenuStrip = trayMenu;
     }
 

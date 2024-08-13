@@ -2,24 +2,21 @@
 
     <PropertyGroup>
         <OutputType>WinExe</OutputType>
-        <TargetFramework>net8.0-windows</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <UseWPF>true</UseWPF>
         <UseWindowsForms>true</UseWindowsForms>
         <ApplicationIcon>Resources\main.ico</ApplicationIcon>
+        <TargetFramework>net8.0-windows</TargetFramework>
+        <BuildNumber>$([System.DateTime]::Now.ToString("MMdd"))</BuildNumber>
+        <RevisionNumber>$([System.DateTime]::Now.ToString("HHmm"))</RevisionNumber>
+        <AssemblyVersion>0.1.$(BuildNumber).$(RevisionNumber)</AssemblyVersion>
+        <FileVersion>0.1.$(BuildNumber).$(RevisionNumber)</FileVersion>
+        <NeutralLanguage>zh-Hans</NeutralLanguage>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Mar.Console" Version="0.6.8"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <Page Update="Views\MainWindow.xaml">
-            <Generator>MSBuild:Compile</Generator>
-            <XamlRuntime>Wpf</XamlRuntime>
-            <SubType>Designer</SubType>
-        </Page>
     </ItemGroup>
 
     <ItemGroup>
