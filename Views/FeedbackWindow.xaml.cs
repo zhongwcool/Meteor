@@ -2,7 +2,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using Mar.Cheese;
-using Meteor.Utils;
 using MessageBox = System.Windows.MessageBox;
 
 namespace Meteor.Views;
@@ -12,9 +11,6 @@ public partial class FeedbackWindow : Window
     public FeedbackWindow()
     {
         InitializeComponent();
-
-        HttpUtil.GetFileContent("https://raw.githubusercontent.com/zhongwcool/Meteor/main/Assets/news.txt")
-            .ContinueWith(task => { Dispatcher.Invoke(() => TxtNews.Text = task.Result); });
     }
 
     private void EmailSupport_Click(object sender, RoutedEventArgs e)

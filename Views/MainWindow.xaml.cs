@@ -22,14 +22,7 @@ namespace Meteor.Views;
 
 public partial class MainWindow : Window
 {
-    private const int Threshold = 200; // 鼠标移动的阈值，单位像素
-    private readonly DispatcherTimer _meteorTimer = new();
-
-    // 定义Timer和BackgroundRectangle用于之后引用
-    private readonly DispatcherTimer _mouseStillTimer = new();
     private readonly Random _random = new();
-    private Point _lastMousePosition; // 用于存储上一次鼠标的位置
-    private Rectangle? _starAreaBackground;
 
     public MainWindow()
     {
@@ -71,6 +64,7 @@ public partial class MainWindow : Window
         _lastMousePosition = Mouse.GetPosition(this);
     }
 
+    // 设置窗口大小覆盖所有屏幕
     private void SetWindowToCoverAllScreens()
     {
         Left = SystemParameters.VirtualScreenLeft;
@@ -79,11 +73,14 @@ public partial class MainWindow : Window
         Height = SystemParameters.VirtualScreenHeight;
     }
 
-    private void MeteorTimer_Tick(object sender, EventArgs e)
-    {
-        AddMeteor();
-        _meteorTimer.Interval = TimeSpan.FromSeconds(_random.Next(5, 20));
-    }
+    #region 渐变背景+动画
+
+    private Point _lastMousePosition; // 用于存储上一次鼠标的位置
+
+    private const int Threshold = 200; // 鼠标移动的阈值，单位像素
+
+    // 定义Timer和BackgroundRectangle用于之后引用
+    private readonly DispatcherTimer _mouseStillTimer = new();
 
     private void MainWindow_MouseMove(object sender, MouseEventArgs args)
     {
@@ -148,6 +145,8 @@ public partial class MainWindow : Window
         CancelMousePenetration();
     }
 
+    private Rectangle? _starAreaBackground;
+
     private void AddGradientBackground()
     {
         if (null == _starAreaBackground)
@@ -191,6 +190,8 @@ public partial class MainWindow : Window
         _starAreaBackground.BeginAnimation(OpacityProperty, fadeInAnimation);
     }
 
+    #endregion
+
     #region 在此添加添加星星的方法 AddStar
 
     private void AddStars()
@@ -232,6 +233,14 @@ public partial class MainWindow : Window
     #endregion
 
     #region 在此添加添加流星的方法 AddMeteor
+
+    private readonly DispatcherTimer _meteorTimer = new();
+
+    private void MeteorTimer_Tick(object sender, EventArgs e)
+    {
+        AddMeteor();
+        _meteorTimer.Interval = TimeSpan.FromSeconds(_random.Next(5, 20));
+    }
 
     private void AddMeteor()
     {
@@ -361,7 +370,7 @@ public partial class MainWindow : Window
         // 创建托盘图标
         var icon = Application.GetResourceStream(new Uri("pack://application:,,,/Resources/Dark/notify.ico"));
         _trayIcon.Icon = new Icon(icon?.Stream!);
-        _trayIcon.Text = "银河与划过的流星";
+        _trayIcon.Text = "银河与流星划过";
         _trayIcon.Visible = true;
 
         var trayMenu = new ContextMenuStrip();

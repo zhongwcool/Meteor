@@ -5,7 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent" Topmost="True"
-        ShowInTaskbar="False">
+        ShowInTaskbar="False"
+        Title="银河与流星划过">
     <Canvas x:Name="SkyCanvas">
         <!-- 动态添加星星和流星 -->
     </Canvas>

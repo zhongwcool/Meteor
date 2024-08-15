@@ -18,7 +18,7 @@
         </Grid.RowDefinitions>
         <StackPanel Orientation="Horizontal" Grid.Row="0">
             <Path Data="{StaticResource IconAnnounce}" Fill="#AAA" Margin="5" />
-            <TextBlock x:Name="TxtNews" Text="希望带给大家一点欢乐" FontFamily="Segoe UI" VerticalAlignment="Center" Margin="5" />
+            <TextBlock Text="希望能给大家带来一点快乐🎵" FontFamily="Segoe UI" VerticalAlignment="Center" Margin="5" />
         </StackPanel>
         <Border Height="1" Background="#555" HorizontalAlignment="Stretch" Margin="5" Grid.Row="1" />
 
